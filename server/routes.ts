@@ -25,11 +25,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const event: ChatEvent = JSON.parse(data);
 
         if (event.type === "message") {
-          const message = await storage.createMessage({
+          // Validate message data against schema
+          const messageData = insertMessageSchema.parse({
             roomId: event.roomId,
             content: event.content,
             username: event.username,
           });
+
+          const message = await storage.createMessage(messageData);
 
           // Broadcast to all connected clients
           wss.clients.forEach((client) => {
@@ -40,6 +43,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (error) {
         console.error("WebSocket message error:", error);
+        // Send error back to client
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "error", message: "Failed to send message" }));
+        }
       }
     });
   });

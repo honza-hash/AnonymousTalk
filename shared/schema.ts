@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -9,7 +9,7 @@ export const rooms = pgTable("rooms", {
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  roomId: serial("room_id").references(() => rooms.id),
+  roomId: integer("room_id").notNull().references(() => rooms.id),
   content: text("content").notNull(),
   username: text("username").notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),

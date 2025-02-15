@@ -1,4 +1,7 @@
 import { type Room, type Message, type InsertRoom, type InsertMessage } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { rooms, messages } from "@shared/schema";
 
 export interface IStorage {
   getRooms(): Promise<Room[]>;
@@ -8,54 +11,34 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
 }
 
-export class MemStorage implements IStorage {
-  private rooms: Map<number, Room>;
-  private messages: Map<number, Message[]>;
-  private currentRoomId: number;
-  private currentMessageId: number;
-
-  constructor() {
-    this.rooms = new Map();
-    this.messages = new Map();
-    this.currentRoomId = 1;
-    this.currentMessageId = 1;
-
-    // Create default room
-    this.createRoom({ name: "General" });
-  }
-
+export class DatabaseStorage implements IStorage {
   async getRooms(): Promise<Room[]> {
-    return Array.from(this.rooms.values());
+    return await db.select().from(rooms);
   }
 
   async getRoom(id: number): Promise<Room | undefined> {
-    return this.rooms.get(id);
+    const [room] = await db.select().from(rooms).where(eq(rooms.id, id));
+    return room;
   }
 
   async createRoom(insertRoom: InsertRoom): Promise<Room> {
-    const id = this.currentRoomId++;
-    const room: Room = { id, ...insertRoom };
-    this.rooms.set(id, room);
-    this.messages.set(id, []);
+    const [room] = await db.insert(rooms).values(insertRoom).returning();
     return room;
   }
 
   async getMessages(roomId: number): Promise<Message[]> {
-    return this.messages.get(roomId) || [];
+    return await db.select()
+      .from(messages)
+      .where(eq(messages.roomId, roomId))
+      .orderBy(messages.timestamp);
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const id = this.currentMessageId++;
-    const message: Message = {
-      id,
-      ...insertMessage,
-      timestamp: new Date(),
-    };
-    const roomMessages = this.messages.get(insertMessage.roomId) || [];
-    roomMessages.push(message);
-    this.messages.set(insertMessage.roomId, roomMessages);
+    const [message] = await db.insert(messages)
+      .values({ ...insertMessage, timestamp: new Date() })
+      .returning();
     return message;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
